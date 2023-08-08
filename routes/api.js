@@ -3,10 +3,6 @@
 const { Issue, Project } = require('../models/issueTracker.js');
 const { ObjectId } = require('mongodb');
 
-//{"assigned_to":"","status_text":"","open":true,"_id":"6319ccd482638209aeba24cf","issue_title":"","issue_text":"","created_by":"","created_on":"2022-09-08T11:07:00.485Z","updated_on":"2022-09-08T12:50:44.362Z"}
-
-//{"assigned_to":"","status_text":"","open":true,"_id":"64c8f8c614c45b0277aeae45","issue_title":"Faux Issue Title","issue_text":"Functional Test - Required Fields Only","created_by":"fCC","created_on":"2023-08-01T12:21:26.816Z","updated_on":"2023-08-01T12:21:26.816Z"}
-
 module.exports = function (app) {
 
   app.route('/api/issues/:project')
@@ -14,6 +10,21 @@ module.exports = function (app) {
       const project = req.params.project;
 
       const { assigned_to, status_text, open, _id, issue_title, issue_text, created_by, created_on, updated_on} = req.query;
+
+      if (Object.keys(req.query).length === 0) {
+        Project.findOne({ name: project })
+          .then(p => {
+            // console.log('PROJECT')
+            // console.log(p);
+            // console.log('ISSUES')
+            // console.log(p.issues)
+            res.json(p.issues);
+          })
+          .catch(() => {
+            res.json([]) 
+          });
+          return
+      }
 
       let openFix;
 
@@ -50,21 +61,18 @@ module.exports = function (app) {
         updated_on != undefined
           ? { $match: { 'issues.updated_on': updated_on }}
           : { $match: {} },
-      ]).then(p => {
-        const issuesData = p.map(d => ({
-          'assigned_to': d.issues.assigned_to,
-          'status_text': d.issues.status_text,
-          'open': d.issues.open,
-          '_id': d.issues._id,
-          'issue_title': d.issues.issue_title,
-          'issue_text': d.issues.issue_text,
-          'created_by': d.issues.created_by,
-          'created_on': d.issues.created_on,
-          'updated_on': d.issues.updated_on
-        }));
+      ])
+        .then(data => {
+          let issueArray = data.map(d => {
+            return d.issues;
+          });
 
-        return res.json(issuesData)
-      })
+          res.json(issueArray);
+        })
+        .catch((err) => {
+          return res.json([]);
+        })
+
     })
 
     .post(async function (req, res) {
@@ -91,7 +99,6 @@ module.exports = function (app) {
             const newProject = new Project({
               name: project,
             })
-
             newProject.issues.push(issue)
 
             newProject.save();
@@ -101,11 +108,8 @@ module.exports = function (app) {
 
             p.save();
           }
+          issue.save().then(() => res.json(issue));
         })
-
-      issue.save();
-
-      return res.json(issue);
     })
 
     .put(async function (req, res) {
@@ -132,7 +136,6 @@ module.exports = function (app) {
             }
 
             else {
-              console.log(req.body, project);
               issue.issue_title = issue_title || issue.issue_title;
               issue.issue_text = issue_text || issue.issue_text;
               issue.created_by = created_by || issue.created_by;
